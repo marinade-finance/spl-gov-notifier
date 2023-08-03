@@ -4,9 +4,23 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "gts lint",
+    "lint:fix": "gts fix",
+    "clean": "gts clean",
+    "compile": "tsc",
+    "build": "pnpm compile"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC"
+  "keywords": [
+    "spl-governance",
+    "solana",
+    "notifier"
+  ],
+  "author": "Marinade.Finance",
+  "license": "ISC",
+  "devDependencies": {
+    "gts": "^5.0.0",
+    "typescript": "~5.1.6",
+    "@types/node": "^20.4.5"
+  }
 }
