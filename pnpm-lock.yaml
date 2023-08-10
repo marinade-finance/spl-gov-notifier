@@ -5,9 +5,12 @@ settings:
   excludeLinksFromLockfile: false
 
 dependencies:
+  '@coral-xyz/anchor':
+    specifier: '0.28'
+    version: 0.28.0
   '@marinade.finance/cli-common':
-    specifier: ^1.0.1
-    version: 1.0.1(@solana/web3.js@1.78.3)(borsh@0.7.0)(expand-tilde@2.0.2)(pino@8.15.0)
+    specifier: ^1.0.2
+    version: 1.0.2(@solana/web3.js@1.78.3)(borsh@0.7.0)(expand-tilde@2.0.2)(pino@8.15.0)
   '@marinade.finance/spl-gov-utils':
     specifier: ^1.0.0
     version: 1.0.0(@coral-xyz/anchor@0.28.0)(@solana/web3.js@1.78.3)
@@ -193,8 +196,8 @@ packages:
       '@jridgewell/sourcemap-codec': 1.4.15
     dev: true
 
-  /@marinade.finance/cli-common@1.0.1(@solana/web3.js@1.78.3)(borsh@0.7.0)(expand-tilde@2.0.2)(pino@8.15.0):
-    resolution: {integrity: sha512-GYY4fNUNRA818dD5rtssmDS0flNrktv+JFR7NGBsQhRNgQxk47hFiuH8pcoa1Enb8HE6Y0K4YaxBn1uuN8MrwQ==}
+  /@marinade.finance/cli-common@1.0.2(@solana/web3.js@1.78.3)(borsh@0.7.0)(expand-tilde@2.0.2)(pino@8.15.0):
+    resolution: {integrity: sha512-7H1rgSqQMGXjiDd0Ddg6qFDGuHM+av3vPv+fNmJTEikFfrfdnuLr5x3OHXpFDwhsLHTmCVtUVsm5i63jCiLaLA==}
     peerDependencies:
       '@solana/web3.js': ^1.78.3
       borsh: ^0.7.0

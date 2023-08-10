@@ -1,6 +1,5 @@
 import { Connection, PublicKey } from '@solana/web3.js'
 import axios from 'axios'
-import { getConnectionContext } from 'utils/connection'
 import {
   getGovernanceAccounts,
   Governance,
@@ -8,57 +7,84 @@ import {
   ProposalState,
   pubkeyFilter,
 } from '@solana/spl-governance'
-import { getCertifiedRealmInfo } from '@models/registry/api'
-import { accountsToPubkeyMap } from '@tools/sdk/accounts'
 import { Command } from 'commander'
+import { parsePubkey } from '@marinade.finance/cli-common'
+import { MNDE_REALM_ADDRESS } from '@marinade.finance/spl-gov-utils'
+import { useContext } from './context'
+import { accountsToPubkeyMap } from './utils'
 
 // advanced from https://github.com/solana-labs/governance-ui
-// expecting to be run every 5 mins via a cronjob, checks if a governance proposal just opened in the last 5 mins
-// and notifies on WEBHOOK_URL
+//  - expecting to be run every X mins via a cronjob
+//  - checking if a governance proposal just opened in the last X mins
+//  - notifies on WEBHOOK_URL if a new governance proposal was created
 
-const fiveMinutesSeconds = 5 * 60
-const toleranceSeconds = 30
+const fiveMinutesInSeconds = 5 * 60
+const toleranceInSeconds = 30
 
 export function installCheckProposals(program: Command) {
   program
-    .command('add-liquidity')
-    .description('Provide liquidity to the liquidity pool')
-    .argument('<amount-sol>', 'SOL amount to add to liquidity pool', parseFloat)
-    .action(async (amountSol: number) => {
-      await checkProposals({
-        amountSol,
-      })
-    })
+    .command('proposals')
+    .description('Verify existence of governance proposals in last time period')
+    .option(
+      '-r, --realm <realm>',
+      'Realm to check proposals for',
+      parsePubkey,
+      Promise.resolve(MNDE_REALM_ADDRESS)
+    )
+    .option(
+      '-t, --time-period <number-in-seconds>',
+      'How many seconds in past should be checked, default 5 minutes' +
+        'for new proposals in realm',
+      parseFloat,
+      fiveMinutesInSeconds
+    )
+    .action(
+      async ({
+        realm,
+        timePeriod,
+      }: {
+        realm: PublicKey
+        timePeriod: number
+      }) => {
+        await checkProposals({
+          realm,
+          timePeriod,
+        })
+      }
+    )
 }
 
-// run every 5 mins, checks if a governance proposal just opened in the last 5 mins
-// and notifies on WEBHOOK_URL
-export async function checkProposals({}): Promise<void> {
-  const REALM = process.env.REALM || 'MNGO'
-  const connectionContext = getConnectionContext('mainnet')
-  const realmInfo = await getCertifiedRealmInfo(REALM, connectionContext)
+export async function checkProposals({
+  realm,
+  timePeriod,
+}: {
+  realm: PublicKey
+  timePeriod: number
+}): Promise<void> {
+  const { connection, logger } = useContext()
+  logger.info(`getting all governance accounts for ${realm.toBase58()}`)
 
-  const connection = new Connection(process.env.CLUSTER_URL!)
-  console.log(`- getting all governance accounts for ${REALM}`)
   const governances = await getGovernanceAccounts(
     connection,
-    realmInfo!.programId,
+    realm,
     Governance,
-    [pubkeyFilter(1, realmInfo!.realmId)!]
+    [pubkeyFilter(1, realm)!]
   )
 
   const governancesMap = accountsToPubkeyMap(governances)
 
-  console.log(`- getting all proposals for all governances`)
+  logger.info(
+    `getting all proposals for all #${governances.length} governances`
+  )
   const proposalsByGovernance = await Promise.all(
-    Object.keys(governancesMap).map((governancePk) => {
-      return getGovernanceAccounts(connection, realmInfo!.programId, Proposal, [
+    Object.keys(governancesMap).map(governancePk => {
+      return getGovernanceAccounts(connection, realm, Proposal, [
         pubkeyFilter(1, new PublicKey(governancePk))!,
       ])
     })
   )
 
-  console.log(`- scanning all '${REALM}' proposals`)
+  console.log(`scanning all proposals from realm ${realm.toBase58()}`)
   let countJustOpenedForVoting = 0
   let countOpenForVotingSinceSomeTime = 0
   let countVotingNotStartedYet = 0
@@ -67,13 +93,6 @@ export async function checkProposals({}): Promise<void> {
   const nowInSeconds = new Date().getTime() / 1000
   for (const proposals_ of proposalsByGovernance) {
     for (const proposal of proposals_) {
-      //// debugging
-      // console.log(
-      //   `-- proposal ${proposal.account.governance.toBase58()} - ${
-      //     proposal.account.name
-      //   }`
-      // )
-
       if (
         // proposal is cancelled
         proposal.account.state === ProposalState.Cancelled
@@ -99,13 +118,9 @@ export async function checkProposals({}): Promise<void> {
       }
 
       if (
-        // proposal opened in last 5 mins
+        // proposal opened in last X mins
         nowInSeconds - proposal.account.votingAt.toNumber() <=
-        fiveMinutesSeconds + toleranceSeconds
-        // proposal opened in last 24 hrs - useful to notify when bot recently stopped working
-        // and missed the 5 min window
-        // (nowInSeconds - proposal.info.votingAt.toNumber())/(60 * 60) <=
-        // 24
+        timePeriod + toleranceInSeconds
       ) {
         countJustOpenedForVoting++
 
@@ -144,12 +159,12 @@ export async function checkProposals({}): Promise<void> {
         nowInSeconds
       if (
         remainingInSeconds > 86400 &&
-        remainingInSeconds < 86400 + fiveMinutesSeconds + toleranceSeconds
+        remainingInSeconds < 86400 + fiveMinutesInSeconds + toleranceInSeconds
       ) {
         const msg = `“${
           proposal.account.name
-        }” proposal will close for voting 🗳 https://realms.today/dao/${escape(
-          REALM
+        }” proposal will close for voting 🗳 https://realms.today/dao/${encodeURIComponent(
+          realm.toBase58()
         )}/proposal/${proposal.pubkey.toBase58()} in 24 hrs`
 
         console.log(msg)
@@ -171,15 +186,10 @@ export interface ConnectionContext {
 }
 
 export function getConnectionContext(cluster: string): ConnectionContext {
-  const ENDPOINT = ENDPOINTS.find((e) => e.name === cluster) || ENDPOINTS[0]
+  const ENDPOINT = ENDPOINTS.find(e => e.name === cluster) || ENDPOINTS[0]
   return {
     cluster: ENDPOINT!.name as EndpointTypes,
     current: new Connection(ENDPOINT!.url, 'recent'),
     endpoint: ENDPOINT!.url,
   }
 }
-
-// start notifier immediately
-errorWrapper()
-
-setInterval(errorWrapper, fiveMinutesSeconds * 1000)
