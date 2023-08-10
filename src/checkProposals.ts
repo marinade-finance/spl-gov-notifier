@@ -2,6 +2,7 @@ import { PublicKey } from '@solana/web3.js'
 import {
   getGovernanceAccounts,
   Governance,
+  ProgramAccount,
   Proposal,
   ProposalState,
   pubkeyFilter,
@@ -12,6 +13,7 @@ import { MNDE_REALM_ADDRESS } from '@marinade.finance/spl-gov-utils'
 import { useContext } from './context'
 import { accountsToPubkeyMap } from './utils'
 import { notify } from './notifier'
+import { Logger } from 'pino'
 
 // advanced from https://github.com/solana-labs/governance-ui
 //  - expecting to be run every X mins via a cronjob
@@ -89,11 +91,11 @@ export async function checkProposals({
       ])
     })
   )
+  const proposals = proposalsByGovernance.flat()
 
   const realmUriComponent = encodeURIComponent(realm.toBase58())
   logger.info(
-    `scanning all proposals from realm ${realm.toBase58()} #` +
-      proposalsByGovernance.flat().length
+    `scanning all proposals from realm ${realm.toBase58()} #` + proposals.length
   )
   let countJustOpenedForVoting = 0
   let countOpenForVotingSinceSomeTime = 0
@@ -101,90 +103,88 @@ export async function checkProposals({
   let countClosed = 0
   let countCancelled = 0
   const nowInSeconds = new Date().getTime() / 1000
-  for (const proposals_ of proposalsByGovernance) {
-    for (const proposal of proposals_) {
-      function getStateKey(value: number): string | undefined {
-        return Object.keys(ProposalState).find(key => ProposalState[value] === key);
-      }
-      console.log(
-        'proposal:',
-        proposal.pubkey.toBase58(),
-        'name:',
-        proposal.account.name,
-        'state:',
-        getStateKey(proposal.account.state),
-        'completedAt:',
-        proposal.account.votingCompletedAt
-        ? new Date(proposal.account.votingCompletedAt.toNumber() * 1000)
-        : null,
-        'votingAt:',
-        proposal.account.votingAt
-          ? new Date(proposal.account.votingAt.toNumber() * 1000)
-          : null
-      )
+  for (const proposal of proposals) {
+    debugProposal(logger, proposal)
+    if (
+      // proposal is cancelled
+      proposal.account.state === ProposalState.Cancelled
+    ) {
+      countCancelled++
+      continue
+    }
 
-      if (
-        // proposal is cancelled
-        proposal.account.state === ProposalState.Cancelled
-      ) {
-        countCancelled++
-        continue
-      }
+    if (
+      // voting is closed
+      proposal.account.votingCompletedAt
+    ) {
+      countClosed++
+      continue
+    }
 
-      if (
-        // voting is closed
-        proposal.account.votingCompletedAt
-      ) {
-        countClosed++
-        continue
-      }
+    if (
+      // voting has not started yet
+      !proposal.account.votingAt
+    ) {
+      countVotingNotStartedYet++
+      continue
+    }
 
-      if (
-        // voting has not started yet
-        !proposal.account.votingAt
-      ) {
-        countVotingNotStartedYet++
-        continue
-      }
+    if (
+      // proposal opened in last X mins
+      nowInSeconds - proposal.account.votingAt.toNumber() <=
+      timePeriod + toleranceInSeconds
+    ) {
+      countJustOpenedForVoting++
 
-      if (
-        // proposal opened in last X mins
-        nowInSeconds - proposal.account.votingAt.toNumber() <=
-        timePeriod + toleranceInSeconds
-      ) {
-        countJustOpenedForVoting++
+      const msg = `SPL Governance proposal '${
+        proposal.account.name
+      }' just opened for voting: https://realms.today/dao/${realmUriComponent}/proposal/${proposal.pubkey.toBase58()}`
 
-        const msg = `“${
-          proposal.account.name
-        }” proposal just opened for voting: https://realms.today/dao/${realmUriComponent}/proposal/${proposal.pubkey.toBase58()}`
+      await notify(msg)
+    }
+    // note that these could also include those in finalizing state, but this is just for logging
+    else if (proposal.account.state === ProposalState.Voting) {
+      countOpenForVotingSinceSomeTime++
+    }
 
-        notify(msg)
-      }
-      // note that these could also include those in finalizing state, but this is just for logging
-      else if (proposal.account.state === ProposalState.Voting) {
-        countOpenForVotingSinceSomeTime++
-      }
+    const remainingInSeconds =
+      governancesMap[proposal.account.governance.toBase58()].account.config
+        .baseVotingTime +
+      proposal.account.votingAt.toNumber() -
+      nowInSeconds
+    if (
+      remainingInSeconds > 86400 &&
+      remainingInSeconds < 86400 + timePeriod + toleranceInSeconds
+    ) {
+      const msg = `SPL Governance proposal '${
+        proposal.account.name
+      }' will close for voting: https://realms.today/dao/${realmUriComponent}/proposal/${proposal.pubkey.toBase58()} in 24 hrs`
 
-      const remainingInSeconds =
-        governancesMap[proposal.account.governance.toBase58()].account.config
-          .baseVotingTime +
-        proposal.account.votingAt.toNumber() -
-        nowInSeconds
-      if (
-        remainingInSeconds > 86400 &&
-        remainingInSeconds < 86400 + timePeriod + toleranceInSeconds
-      ) {
-        const msg = `“${
-          proposal.account.name
-        }” proposal will close for voting: https://realms.today/dao/${realmUriComponent}/proposal/${proposal.pubkey.toBase58()} in 24 hrs`
-
-        notify(msg)
-      }
+      await notify(msg)
     }
   }
   logger.info(
     `countOpenForVotingSinceSomeTime: ${countOpenForVotingSinceSomeTime}, ` +
       `countJustOpenedForVoting: ${countJustOpenedForVoting}, countVotingNotStartedYet: ${countVotingNotStartedYet}, ` +
       `countClosed: ${countClosed}, countCancelled: ${countCancelled}`
+  )
+}
+
+function getStateKey(value: number): string | undefined {
+  return Object.keys(ProposalState).find(key => ProposalState[value] === key)
+}
+
+function debugProposal(logger: Logger, proposal: ProgramAccount<Proposal>) {
+  logger.debug(
+    'proposal: %s, name: %s, state: %s, completedAt: %s, votingAt: %s',
+    proposal.pubkey.toBase58(),
+    proposal.account.name,
+    getStateKey(proposal.account.state),
+    proposal.account.votingCompletedAt
+      ? new Date(proposal.account.votingCompletedAt.toNumber() * 1000)
+      : null,
+    proposal.account.votingAt
+      ? new Date(proposal.account.votingAt.toNumber() * 1000)
+      : null
   )
 }

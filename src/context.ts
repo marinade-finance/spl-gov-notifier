@@ -5,6 +5,7 @@ import {
   parseCommitment,
   setContext,
   getContext,
+  CliCommandError,
 } from '@marinade.finance/cli-common'
 import { Logger } from 'pino'
 
@@ -88,9 +89,12 @@ export function setCliContext({
   switch (parsedType) {
     case NotificationType.WEBHOOK:
       if (!notificationConfig || notificationConfig.length === 0) {
-        throw new Error(
-          'Invalid notification config for webhook type, expecting at least one param: url'
-        )
+        throw new CliCommandError({
+          commandName: command,
+          valueName: '--notification-config',
+          value: notificationConfig,
+          msg: 'Invalid webhook notification, expecting at least one param: url',
+        })
       }
       notification = {
         type: NotificationType.WEBHOOK,
@@ -99,9 +103,12 @@ export function setCliContext({
       break
     case NotificationType.TELEGRAM:
       if (!notificationConfig || notificationConfig.length < 2) {
-        throw new Error(
-          'Invalid notification config for telegram type, expecting at least two params: botToken and chatId'
-        )
+        throw new CliCommandError({
+          commandName: command,
+          valueName: '--notification-config',
+          value: notificationConfig,
+          msg: 'Invalid telegram notification, expecting at least two params: botToken and chatId',
+        })
       }
       notification = {
         type: NotificationType.TELEGRAM,
