@@ -3,8 +3,12 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
+  "bin": {
+    "notifier": "./dist/index.js"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
+    "cli": "ts-node src/index.ts",
     "lint": "gts lint",
     "lint:fix": "gts fix",
     "clean": "gts clean",
@@ -25,6 +29,8 @@
     "commander": "^11.0.0",
     "axios": "^1.4.0",
     "pino": "^8.15.0",
+    "pino-pretty": "^10.2.0",
+    "bn.js": "^5.2.0",
     "@marinade.finance/cli-common": "^1.0.2",
     "@marinade.finance/spl-gov-utils": "^1.0.0"
   },

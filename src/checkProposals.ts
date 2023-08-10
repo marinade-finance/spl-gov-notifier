@@ -1,5 +1,4 @@
-import { Connection, PublicKey } from '@solana/web3.js'
-import axios from 'axios'
+import { PublicKey } from '@solana/web3.js'
 import {
   getGovernanceAccounts,
   Governance,
@@ -12,6 +11,7 @@ import { parsePubkey } from '@marinade.finance/cli-common'
 import { MNDE_REALM_ADDRESS } from '@marinade.finance/spl-gov-utils'
 import { useContext } from './context'
 import { accountsToPubkeyMap } from './utils'
+import { notify } from './notifier'
 
 // advanced from https://github.com/solana-labs/governance-ui
 //  - expecting to be run every X mins via a cronjob
@@ -43,11 +43,11 @@ export function installCheckProposals(program: Command) {
         realm,
         timePeriod,
       }: {
-        realm: PublicKey
+        realm: Promise<PublicKey>
         timePeriod: number
       }) => {
         await checkProposals({
-          realm,
+          realm: await realm,
           timePeriod,
         })
       }
@@ -64,9 +64,15 @@ export async function checkProposals({
   const { connection, logger } = useContext()
   logger.info(`getting all governance accounts for ${realm.toBase58()}`)
 
+  const realmAccount = await connection.getAccountInfo(realm)
+  if (realmAccount === null) {
+    throw new Error(
+      `Realm ${realm.toBase58()} not found via RPC '${connection.rpcEndpoint}'`
+    )
+  }
   const governances = await getGovernanceAccounts(
     connection,
-    realm,
+    realmAccount.owner,
     Governance,
     [pubkeyFilter(1, realm)!]
   )
@@ -78,13 +84,17 @@ export async function checkProposals({
   )
   const proposalsByGovernance = await Promise.all(
     Object.keys(governancesMap).map(governancePk => {
-      return getGovernanceAccounts(connection, realm, Proposal, [
+      return getGovernanceAccounts(connection, realmAccount.owner, Proposal, [
         pubkeyFilter(1, new PublicKey(governancePk))!,
       ])
     })
   )
 
-  console.log(`scanning all proposals from realm ${realm.toBase58()}`)
+  const realmUriComponent = encodeURIComponent(realm.toBase58())
+  logger.info(
+    `scanning all proposals from realm ${realm.toBase58()} #` +
+      proposalsByGovernance.flat().length
+  )
   let countJustOpenedForVoting = 0
   let countOpenForVotingSinceSomeTime = 0
   let countVotingNotStartedYet = 0
@@ -93,6 +103,26 @@ export async function checkProposals({
   const nowInSeconds = new Date().getTime() / 1000
   for (const proposals_ of proposalsByGovernance) {
     for (const proposal of proposals_) {
+      function getStateKey(value: number): string | undefined {
+        return Object.keys(ProposalState).find(key => ProposalState[value] === key);
+      }
+      console.log(
+        'proposal:',
+        proposal.pubkey.toBase58(),
+        'name:',
+        proposal.account.name,
+        'state:',
+        getStateKey(proposal.account.state),
+        'completedAt:',
+        proposal.account.votingCompletedAt
+        ? new Date(proposal.account.votingCompletedAt.toNumber() * 1000)
+        : null,
+        'votingAt:',
+        proposal.account.votingAt
+          ? new Date(proposal.account.votingAt.toNumber() * 1000)
+          : null
+      )
+
       if (
         // proposal is cancelled
         proposal.account.state === ProposalState.Cancelled
@@ -126,30 +156,13 @@ export async function checkProposals({
 
         const msg = `“${
           proposal.account.name
-        }” proposal just opened for voting 🗳 https://realms.today/dao/${escape(
-          REALM
-        )}/proposal/${proposal.pubkey.toBase58()}`
+        }” proposal just opened for voting: https://realms.today/dao/${realmUriComponent}/proposal/${proposal.pubkey.toBase58()}`
 
-        console.log(msg)
-        if (process.env.WEBHOOK_URL) {
-          axios.post(process.env.WEBHOOK_URL, { content: msg })
-        }
+        notify(msg)
       }
       // note that these could also include those in finalizing state, but this is just for logging
       else if (proposal.account.state === ProposalState.Voting) {
         countOpenForVotingSinceSomeTime++
-
-        //// in case bot has an issue, uncomment, and run from local with webhook url set as env var
-        // const msg = `“${
-        //     proposal.account.name
-        // }” proposal just opened for voting 🗳 https://realms.today/dao/${escape(
-        //     REALM
-        // )}/proposal/${proposal.pubkey.toBase58()}`
-        //
-        // console.log(msg)
-        // if (process.env.WEBHOOK_URL) {
-        //   axios.post(process.env.WEBHOOK_URL, { content: msg })
-        // }
       }
 
       const remainingInSeconds =
@@ -159,37 +172,19 @@ export async function checkProposals({
         nowInSeconds
       if (
         remainingInSeconds > 86400 &&
-        remainingInSeconds < 86400 + fiveMinutesInSeconds + toleranceInSeconds
+        remainingInSeconds < 86400 + timePeriod + toleranceInSeconds
       ) {
         const msg = `“${
           proposal.account.name
-        }” proposal will close for voting 🗳 https://realms.today/dao/${encodeURIComponent(
-          realm.toBase58()
-        )}/proposal/${proposal.pubkey.toBase58()} in 24 hrs`
+        }” proposal will close for voting: https://realms.today/dao/${realmUriComponent}/proposal/${proposal.pubkey.toBase58()} in 24 hrs`
 
-        console.log(msg)
-        if (process.env.WEBHOOK_URL) {
-          axios.post(process.env.WEBHOOK_URL, { content: msg })
-        }
+        notify(msg)
       }
     }
   }
-  console.log(
-    `-- countOpenForVotingSinceSomeTime: ${countOpenForVotingSinceSomeTime}, countJustOpenedForVoting: ${countJustOpenedForVoting}, countVotingNotStartedYet: ${countVotingNotStartedYet}, countClosed: ${countClosed}, countCancelled: ${countCancelled}`
+  logger.info(
+    `countOpenForVotingSinceSomeTime: ${countOpenForVotingSinceSomeTime}, ` +
+      `countJustOpenedForVoting: ${countJustOpenedForVoting}, countVotingNotStartedYet: ${countVotingNotStartedYet}, ` +
+      `countClosed: ${countClosed}, countCancelled: ${countCancelled}`
   )
-}
-
-export interface ConnectionContext {
-  cluster: EndpointTypes
-  current: Connection
-  endpoint: string
-}
-
-export function getConnectionContext(cluster: string): ConnectionContext {
-  const ENDPOINT = ENDPOINTS.find(e => e.name === cluster) || ENDPOINTS[0]
-  return {
-    cluster: ENDPOINT!.name as EndpointTypes,
-    current: new Connection(ENDPOINT!.url, 'recent'),
-    endpoint: ENDPOINT!.url,
-  }
 }

@@ -7,11 +7,13 @@ import { setCliContext } from './context'
 import { configureLogger } from '@marinade.finance/cli-common'
 
 const logger = configureLogger()
-const program = new Command('notify')
+const program = new Command('')
 
 program
   .version('1.0.0')
-  .description('Notify about stuff via webhook calls, implemented to notify on new SPL Gov proposals')
+  .description(
+    'Notify about stuff via webhook calls, implemented to notify on new SPL Gov proposals'
+  )
   .allowExcessArguments(false)
   .option(
     '-u, --url <url-or-moniker>',
@@ -20,10 +22,12 @@ program
     'm'
   )
   .option('--commitment <commitment>', 'Commitment', 'confirmed')
-  .option('-c, --notification-config <webhook-config>', 'Additional webhook configurations.' + 
-  'Every "notification-type" has got different variadic arguments to pass in.\n' +
-  'webhook expects url [<url>], i.e., --notification-type webhook -c http://some/url\n' +
-  'telegram expects token [<token> <chatId>], i.e., --notification-type telegram -c \'abcdef:123\' \'-123456789\'\n' +
+  .option(
+    '-c, --notification-config <config...>',
+    'Additional webhook configurations.' +
+      'Every "notification-type" has got different variadic arguments to pass in.\n' +
+      'webhook expects url [<url>], i.e., --notification-type webhook -c http://some/url\n' +
+      "telegram expects token [<token> <chatId>], i.e., --notification-type telegram -c 'abcdef:123' '-123456789'"
   )
   .option('-d, --debug', 'Debug', false)
   .addOption(
@@ -32,7 +36,7 @@ program
       'Notification type'
     )
       .choices(['webhook', 'telegram', 'none'])
-      .default('webhook')
+      .default('none')
   )
   .hook('preAction', async (command: Command, action: Command) => {
     if (command.opts().debug) {

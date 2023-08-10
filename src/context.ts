@@ -8,17 +8,10 @@ import {
 } from '@marinade.finance/cli-common'
 import { Logger } from 'pino'
 
-
-// curl -X POST \
-//      -H 'Content-Type: application/json' \
-//      -d '{"chat_id": "123456789", "text": "This is a test from curl", "disable_notification": true}' \
-//      https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage
-export const TELEGRAM_BOT_URL: string = 'https://api.telegram.org/bot'
-
 export enum NotificationType {
   WEBHOOK,
   TELEGRAM,
-  NONE
+  NONE,
 }
 
 function parseNotificationType(notificationType: string): NotificationType {
@@ -39,8 +32,6 @@ export type Notification =
   | { type: NotificationType.TELEGRAM; botToken: string; chatId: string }
   | { type: NotificationType.NONE }
 
-
-
 export class CliContext extends Context {
   readonly connection: Connection
   readonly notification: Notification
@@ -51,7 +42,7 @@ export class CliContext extends Context {
     simulate,
     printOnly,
     commandName,
-    notification
+    notification,
   }: {
     connection: Connection
     logger: Logger
@@ -86,13 +77,41 @@ export function setCliContext({
   commitment: string
   command: string
   notificationType: string
-  notificationConfig: string
+  notificationConfig: string[]
 }) {
   const connection = new Connection(
     getClusterUrl(url),
     parseCommitment(commitment)
   )
   const parsedType = parseNotificationType(notificationType)
+  let notification: Notification
+  switch (parsedType) {
+    case NotificationType.WEBHOOK:
+      if (!notificationConfig || notificationConfig.length === 0) {
+        throw new Error(
+          'Invalid notification config for webhook type, expecting at least one param: url'
+        )
+      }
+      notification = {
+        type: NotificationType.WEBHOOK,
+        url: notificationConfig[0],
+      }
+      break
+    case NotificationType.TELEGRAM:
+      if (!notificationConfig || notificationConfig.length < 2) {
+        throw new Error(
+          'Invalid notification config for telegram type, expecting at least two params: botToken and chatId'
+        )
+      }
+      notification = {
+        type: NotificationType.TELEGRAM,
+        botToken: notificationConfig[0],
+        chatId: notificationConfig[1],
+      }
+      break
+    default:
+      notification = { type: NotificationType.NONE }
+  }
 
   setContext(
     new CliContext({
@@ -102,7 +121,7 @@ export function setCliContext({
       simulate: false,
       printOnly: false,
       commandName: command,
-      notification: {type: NotificationType.NONE} // TODO: :-)
+      notification,
     })
   )
 }
