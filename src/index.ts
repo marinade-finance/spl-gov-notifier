@@ -1,33 +1,86 @@
-console.log('Try npm run lint/fix!')
+#!/usr/bin/env node
 
-const longString =
-  'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Integer ut aliquet diam.'
+/* eslint-disable no-process-exit */
+import { Command } from 'commander'
+import { parseSigner, setMarinadeCLIContext } from './context'
+import { installCommands } from './commands'
+import { pino, Logger } from 'pino'
 
-const trailing = 'Semicolon'
+const DEFAULT_KEYPAIR_PATH = '~/.config/solana/id.json'
 
-const why = { am: 'I tabbed?' }
+const pinoAdditionalOptions = process.env.NODE_ENV?.startsWith('prod')
+  ? {
+      singleLine: true,
+      errorLikeObjectKeys: [],
+    }
+  : {}
+const logger: Logger = pino({
+  transport: {
+    target: 'pino-pretty',
+    options: {
+      translateTime: 'UTC:yyyy-mm-dd HH:MM:ss.l o',
+      ...pinoAdditionalOptions,
+    },
+  },
+  level: 'info',
+})
 
-const iWish = "I didn't have a trailing space..."
+const program = new Command('marinade')
 
-const sicilian = true
+program
+  .version('5.1.0')
+  .allowExcessArguments(false)
+  .option(
+    '-u, --url <url-or-moniker>',
+    'URL of Solana cluster or ' +
+      'moniker (m/mainnet/mainnet-beta, d/devnet, t/testnet)',
+    'm'
+  )
+  .option('--commitment <commitment>', 'Commitment', 'confirmed')
+  .option(
+    '-k, --keypair <keypair-or-ledger>',
+    'Wallet keypair (path or ledger url in format usb://ledger/[<pubkey>][?key=<derivedPath>]) ' +
+      ` (default: ${DEFAULT_KEYPAIR_PATH})`
+  )
+  .option('-s, --simulate', 'Simulate', false)
+  .option(
+    '-p, --print-only',
+    'Print only mode, no execution, instructions are printed in base64 to output. ' +
+      'This can be used for placing the admin commands to SPL Governance UI by hand.',
+    false
+  )
+  .option(
+    '--skip-preflight',
+    'setting transaction execution flag "skip-preflight"',
+    false
+  )
+  .option('-d, --debug', 'Debug', false)
+  .hook('preAction', async (command: Command, action: Command) => {
+    if (command.opts().debug) {
+      logger.level = 'debug'
+    }
 
-const vizzini = sicilian ? !sicilian : sicilian
+    let walletSigner = (await command.opts().keypair) ?? DEFAULT_KEYPAIR_PATH
+    walletSigner = await parseSigner(walletSigner, logger)
 
-const re = /foo {3}bar/
+    setMarinadeCLIContext({
+      url: command.opts().url as string,
+      walletSigner,
+      simulate: Boolean(command.opts().simulate),
+      printOnly: Boolean(command.opts().printOnly),
+      skipPreflight: Boolean(command.opts().skipPreflight),
+      commitment: command.opts().commitment,
+      logger,
+      command: action.name(),
+    })
+  })
 
-export function doSomeStuff(
-  withThis: string,
-  andThat: string,
-  andThose: string[]
-) {
-  //function on one line
-  if (!andThose.length) {
-    return false
+installCommands(program)
+
+program.parseAsync(process.argv).then(
+  () => process.exit(),
+  (err: unknown) => {
+    logger.error(err)
+    process.exit(1)
   }
-  console.log(withThis)
-  console.log(andThat)
-  console.dir(andThose)
-  console.log(longString, trailing, why, iWish, vizzini, re)
-  return
-}
-// TODO: more examples
+)
