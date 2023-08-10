@@ -21,7 +21,12 @@ program
       '(m/mainnet/mainnet-beta, d/devnet, t/testnet)',
     'm'
   )
-  .option('--commitment <commitment>', 'Commitment', 'confirmed')
+  .option(
+    '--commitment <commitment>',
+    'Solana RPC client connection commitment',
+    'confirmed'
+  )
+  .option('-d, --debug', 'Debug', false)
   .option(
     '-c, --notification-config <config...>',
     'Additional webhook configurations.' +
@@ -29,7 +34,6 @@ program
       'webhook expects url [<url>], i.e., --notification-type webhook -c http://some/url\n' +
       "telegram expects token [<token> <chatId>], i.e., --notification-type telegram -c 'abcdef:123' '-123456789'"
   )
-  .option('-d, --debug', 'Debug', false)
   .addOption(
     new Option(
       '-n, --notification-type <notification-type>',
@@ -38,18 +42,24 @@ program
       .choices(['webhook', 'telegram', 'none'])
       .default('none')
   )
+  .option(
+    '-r, --redis <redis-url>',
+    'Redis URL (example: redis://localhost:6379). ' +
+      'When provided then the notifier uses redis to store its last run to not loosing any notifications.'
+  )
   .hook('preAction', async (command: Command, action: Command) => {
     if (command.opts().debug) {
       logger.level = 'debug'
     }
 
-    setCliContext({
+    await setCliContext({
       url: command.opts().url as string,
       commitment: command.opts().commitment,
       logger,
       command: action.name(),
       notificationType: command.opts().notificationType,
       notificationConfig: command.opts().notificationConfig,
+      redisUrl: command.opts().redis,
     })
   })
 

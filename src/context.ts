@@ -8,6 +8,7 @@ import {
   CliCommandError,
 } from '@marinade.finance/cli-common'
 import { Logger } from 'pino'
+import { createClient, RedisClientType } from 'redis'
 
 export enum NotificationType {
   WEBHOOK,
@@ -36,6 +37,7 @@ export type Notification =
 export class CliContext extends Context {
   readonly connection: Connection
   readonly notification: Notification
+  readonly redisClient: RedisClientType | undefined
   constructor({
     connection,
     logger,
@@ -44,6 +46,7 @@ export class CliContext extends Context {
     printOnly,
     commandName,
     notification,
+    redisClient,
   }: {
     connection: Connection
     logger: Logger
@@ -52,6 +55,7 @@ export class CliContext extends Context {
     printOnly: boolean
     commandName: string
     notification: Notification
+    redisClient: RedisClientType | undefined
   }) {
     super({
       logger,
@@ -62,23 +66,26 @@ export class CliContext extends Context {
     })
     this.connection = connection
     this.notification = notification
+    this.redisClient = redisClient
   }
 }
 
-export function setCliContext({
+export async function setCliContext({
   url,
   logger,
   commitment,
   command,
   notificationType,
   notificationConfig,
+  redisUrl,
 }: {
   url: string
   logger: Logger
   commitment: string
   command: string
   notificationType: string
-  notificationConfig: string[]
+  notificationConfig: string[] | undefined
+  redisUrl: string | undefined
 }) {
   const connection = new Connection(
     getClusterUrl(url),
@@ -120,6 +127,22 @@ export function setCliContext({
       notification = { type: NotificationType.NONE }
   }
 
+  let redisClient: RedisClientType | undefined = undefined
+  if (redisUrl) {
+    try {
+      redisClient = createClient({ url: redisUrl })
+      await redisClient.connect()
+    } catch (e) {
+      throw new CliCommandError({
+        commandName: command,
+        valueName: '--redis-url',
+        value: redisUrl,
+        msg: 'Cannot connect to redis with provided url',
+        cause: e as Error,
+      })
+    }
+  }
+
   setContext(
     new CliContext({
       connection,
@@ -129,6 +152,7 @@ export function setCliContext({
       printOnly: false,
       commandName: command,
       notification,
+      redisClient,
     })
   )
 }

@@ -14,12 +14,14 @@ import { useContext } from './context'
 import { accountsToPubkeyMap } from './utils'
 import { notify } from './notifier'
 import { Logger } from 'pino'
+import { time } from 'console'
 
 // advanced from https://github.com/solana-labs/governance-ui
 //  - expecting to be run every X mins via a cronjob
 //  - checking if a governance proposal just opened in the last X mins
 //  - notifies on WEBHOOK_URL if a new governance proposal was created
 
+const REDIS_KEY = 'spl-gov-notify-proposals:timestamp'
 const fiveMinutesInSeconds = 5 * 60
 const toleranceInSeconds = 30
 
@@ -34,23 +36,22 @@ export function installCheckProposals(program: Command) {
       Promise.resolve(MNDE_REALM_ADDRESS)
     )
     .option(
-      '-t, --time-period <number-in-seconds>',
-      'How many seconds in past should be checked, default 5 minutes' +
-        'for new proposals in realm',
+      '-t, --time-to-check <seconds>',
+      'How many seconds in past should be checked for new proposals in the realm; default 5 minutes',
       parseFloat,
       fiveMinutesInSeconds
     )
     .action(
       async ({
         realm,
-        timePeriod,
+        timeToCheck,
       }: {
         realm: Promise<PublicKey>
-        timePeriod: number
+        timeToCheck: number
       }) => {
         await checkProposals({
           realm: await realm,
-          timePeriod,
+          timeToCheck,
         })
       }
     )
@@ -58,12 +59,12 @@ export function installCheckProposals(program: Command) {
 
 export async function checkProposals({
   realm,
-  timePeriod,
+  timeToCheck,
 }: {
   realm: PublicKey
-  timePeriod: number
+  timeToCheck: number
 }): Promise<void> {
-  const { connection, logger } = useContext()
+  const { connection, logger, redisClient } = useContext()
   logger.info(`getting all governance accounts for ${realm.toBase58()}`)
 
   const realmAccount = await connection.getAccountInfo(realm)
@@ -97,12 +98,24 @@ export async function checkProposals({
   logger.info(
     `scanning all proposals from realm ${realm.toBase58()} #` + proposals.length
   )
+
+  const nowInSeconds = new Date().getTime() / 1000
+
+  // when redis url is available then timePeriod is adjusted
+  // to verify if we have not missed any proposals
+  if (redisClient) {
+    let redisTimestamp = await redisClient.get(REDIS_KEY)
+    let redisTimestampAsNumber = redisTimestamp ? parseInt(redisTimestamp) : null
+    if (redisTimestampAsNumber !== null && redisTimestampAsNumber < nowInSeconds - timeToCheck) {
+      timeToCheck = nowInSeconds - redisTimestampAsNumber
+    }
+  }
+
   let countJustOpenedForVoting = 0
   let countOpenForVotingSinceSomeTime = 0
   let countVotingNotStartedYet = 0
   let countClosed = 0
   let countCancelled = 0
-  const nowInSeconds = new Date().getTime() / 1000
   for (const proposal of proposals) {
     debugProposal(logger, proposal)
     if (
@@ -132,7 +145,7 @@ export async function checkProposals({
     if (
       // proposal opened in last X mins
       nowInSeconds - proposal.account.votingAt.toNumber() <=
-      timePeriod + toleranceInSeconds
+      timeToCheck + toleranceInSeconds
     ) {
       countJustOpenedForVoting++
 
@@ -154,7 +167,7 @@ export async function checkProposals({
       nowInSeconds
     if (
       remainingInSeconds > 86400 &&
-      remainingInSeconds < 86400 + timePeriod + toleranceInSeconds
+      remainingInSeconds < 86400 + timeToCheck + toleranceInSeconds
     ) {
       const msg = `SPL Governance proposal '${
         proposal.account.name
@@ -163,6 +176,11 @@ export async function checkProposals({
       await notify(msg)
     }
   }
+
+  if (redisClient) {
+    await redisClient.set(REDIS_KEY, (nowInSeconds + toleranceInSeconds).toString())
+  }
+
   logger.info(
     `countOpenForVotingSinceSomeTime: ${countOpenForVotingSinceSomeTime}, ` +
       `countJustOpenedForVoting: ${countJustOpenedForVoting}, countVotingNotStartedYet: ${countVotingNotStartedYet}, ` +
