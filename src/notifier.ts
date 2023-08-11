@@ -31,7 +31,7 @@ export async function notify(message: string) {
     case NotificationType.DISCORD: {
       const payload = {
         "username": "SPL Governance Notifier : " + commandName,
-        "avatar_url": "https://public.marinade.finance/ds-emergency-bot.png", // TODO:
+        "avatar_url": "https://raw.githubusercontent.com/marinade-finance/spl-gov-notifier/62770e10c5310ec3fce2c4c8e134680edcdaf14d/img/bot.jpg",
         "embeds": [
             {
                 "title": `${message}`,

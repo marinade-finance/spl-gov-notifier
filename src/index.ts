@@ -3,7 +3,7 @@
 /* eslint-disable no-process-exit */
 import { Command, Option } from 'commander'
 import { installCheckProposals } from './checkProposals'
-import { NotificationType, setCliContext } from './context'
+import { NOTIFICATION_TYPE_NAMES, setCliContext } from './context'
 import { configureLogger } from '@marinade.finance/cli-common'
 
 const logger = configureLogger()
@@ -40,7 +40,7 @@ program
       '-n, --notification-type <notification-type>',
       'Notification type'
     )
-      .choices(Object.keys(NotificationType).map(k => k.toLowerCase()))
+      .choices(NOTIFICATION_TYPE_NAMES)
       .default('none')
   )
   .option(
