@@ -14,14 +14,13 @@ import { useContext } from './context'
 import { accountsToPubkeyMap } from './utils'
 import { notify } from './notifier'
 import { Logger } from 'pino'
-import { time } from 'console'
 
 // advanced from https://github.com/solana-labs/governance-ui
 //  - expecting to be run every X mins via a cronjob
 //  - checking if a governance proposal just opened in the last X mins
 //  - notifies on WEBHOOK_URL if a new governance proposal was created
 
-const REDIS_KEY = 'spl-gov-notify-proposals:timestamp'
+const REDIS_KEY = 'spl-gov-notifier:proposals_timestamp'
 const fiveMinutesInSeconds = 5 * 60
 const toleranceInSeconds = 30
 

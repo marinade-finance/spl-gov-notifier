@@ -18,7 +18,8 @@ export enum NotificationType {
 }
 
 export const NOTIFICATION_TYPE_NAMES = Object.values(NotificationType)
-  .map((k) => `${k}`.toLocaleLowerCase()).slice(0, Object.values(NotificationType).length/2)
+  .map(k => `${k}`.toLocaleLowerCase())
+  .slice(0, Object.values(NotificationType).length / 2)
 
 function parseNotificationType(notificationType: string): NotificationType {
   switch (notificationType) {
