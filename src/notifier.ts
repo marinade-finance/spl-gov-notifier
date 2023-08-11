@@ -1,19 +1,20 @@
 import { NotificationType, useContext } from './context'
 import axios from 'axios'
 
-export const TELEGRAM_BOT_URL = 'https://api.telegram.org/bot'
+const TELEGRAM_BOT_URL = 'https://api.telegram.org/bot'
+
+const headers = {
+  'Content-Type': 'application/json',
+}
 
 export async function notify(message: string) {
-  const { notification, logger } = useContext()
+  const { notification, logger, commandName } = useContext()
   logger.info('notify: %s', message)
 
   let axiosResponse
   switch (notification.type) {
     case NotificationType.TELEGRAM: {
       const url = `${TELEGRAM_BOT_URL}${notification.botToken}/sendMessage`
-      const headers = {
-        'Content-Type': 'application/json',
-      }
       const payload = {
         chat_id: notification.chatId,
         text: message,
@@ -27,6 +28,25 @@ export async function notify(message: string) {
       axiosResponse = await axios.post(url, payload, { headers })
       break
     }
+    case NotificationType.DISCORD: {
+      const payload = {
+        "username": "SPL Governance Notifier : " + commandName,
+        "avatar_url": "https://public.marinade.finance/ds-emergency-bot.png", // TODO:
+        "embeds": [
+            {
+                "title": `${message}`,
+                "color": "3093151" // blue
+            }
+        ]
+      }
+      logger.debug(
+        'sending discord notification to "%s" with payload "%s"',
+        notification.url,
+        JSON.stringify(payload)
+      )
+      axiosResponse = await axios.post(notification.url, payload, { headers })
+      break
+    }
     case NotificationType.WEBHOOK: {
       axiosResponse = await axios.post(notification.url, { message })
       logger.debug(
@@ -34,7 +54,6 @@ export async function notify(message: string) {
         notification.url,
         message
       )
-
       break
     }
     default:

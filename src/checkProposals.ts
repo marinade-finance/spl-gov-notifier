@@ -104,9 +104,14 @@ export async function checkProposals({
   // when redis url is available then timePeriod is adjusted
   // to verify if we have not missed any proposals
   if (redisClient) {
-    let redisTimestamp = await redisClient.get(REDIS_KEY)
-    let redisTimestampAsNumber = redisTimestamp ? parseInt(redisTimestamp) : null
-    if (redisTimestampAsNumber !== null && redisTimestampAsNumber < nowInSeconds - timeToCheck) {
+    const redisTimestamp = await redisClient.get(REDIS_KEY)
+    const redisTimestampAsNumber = redisTimestamp
+      ? parseInt(redisTimestamp)
+      : null
+    if (
+      redisTimestampAsNumber !== null &&
+      redisTimestampAsNumber < nowInSeconds - timeToCheck
+    ) {
       timeToCheck = nowInSeconds - redisTimestampAsNumber
     }
   }
@@ -178,7 +183,10 @@ export async function checkProposals({
   }
 
   if (redisClient) {
-    await redisClient.set(REDIS_KEY, (nowInSeconds + toleranceInSeconds).toString())
+    await redisClient.set(
+      REDIS_KEY,
+      (nowInSeconds + toleranceInSeconds).toString()
+    )
   }
 
   logger.info(

@@ -13,6 +13,7 @@ import { createClient, RedisClientType } from 'redis'
 export enum NotificationType {
   WEBHOOK,
   TELEGRAM,
+  DISCORD,
   NONE,
 }
 
@@ -22,15 +23,18 @@ function parseNotificationType(notificationType: string): NotificationType {
       return NotificationType.WEBHOOK
     case 'telegram':
       return NotificationType.TELEGRAM
+    case 'discord':
+      return NotificationType.DISCORD
     case 'none':
       return NotificationType.NONE
     default:
-      throw new Error('Invalid notification type')
+      throw new Error('Invalid notification type: ' + notificationType)
   }
 }
 
 export type Notification =
   | { type: NotificationType.WEBHOOK; url: string }
+  | { type: NotificationType.DISCORD; url: string }
   | { type: NotificationType.TELEGRAM; botToken: string; chatId: string }
   | { type: NotificationType.NONE }
 
@@ -70,30 +74,13 @@ export class CliContext extends Context {
   }
 }
 
-export async function setCliContext({
-  url,
-  logger,
-  commitment,
-  command,
-  notificationType,
-  notificationConfig,
-  redisUrl,
-}: {
-  url: string
-  logger: Logger
-  commitment: string
+function parseNotification(
+  notificationType: NotificationType,
+  notificationConfig: string[] | undefined,
   command: string
-  notificationType: string
-  notificationConfig: string[] | undefined
-  redisUrl: string | undefined
-}) {
-  const connection = new Connection(
-    getClusterUrl(url),
-    parseCommitment(commitment)
-  )
-  const parsedType = parseNotificationType(notificationType)
+): Notification {
   let notification: Notification
-  switch (parsedType) {
+  switch (notificationType) {
     case NotificationType.WEBHOOK:
       if (!notificationConfig || notificationConfig.length === 0) {
         throw new CliCommandError({
@@ -123,9 +110,53 @@ export async function setCliContext({
         chatId: notificationConfig[1],
       }
       break
+    case NotificationType.DISCORD:
+      if (!notificationConfig || notificationConfig.length === 0) {
+        throw new CliCommandError({
+          commandName: command,
+          valueName: '--notification-config',
+          value: notificationConfig,
+          msg: 'Invalid discord notification, expecting one param: botToken',
+        })
+      }
+      notification = {
+        type: NotificationType.DISCORD,
+        url: notificationConfig[0],
+      }
+      break
     default:
       notification = { type: NotificationType.NONE }
   }
+  return notification
+}
+
+export async function setCliContext({
+  url,
+  logger,
+  commitment,
+  command,
+  notificationType,
+  notificationConfig,
+  redisUrl,
+}: {
+  url: string
+  logger: Logger
+  commitment: string
+  command: string
+  notificationType: string
+  notificationConfig: string[] | undefined
+  redisUrl: string | undefined
+}) {
+  const connection = new Connection(
+    getClusterUrl(url),
+    parseCommitment(commitment)
+  )
+  const parsedType = parseNotificationType(notificationType)
+  const notification = parseNotification(
+    parsedType,
+    notificationConfig,
+    command
+  )
 
   let redisClient: RedisClientType | undefined = undefined
   if (redisUrl) {

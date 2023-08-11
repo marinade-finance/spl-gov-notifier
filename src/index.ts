@@ -3,7 +3,7 @@
 /* eslint-disable no-process-exit */
 import { Command, Option } from 'commander'
 import { installCheckProposals } from './checkProposals'
-import { setCliContext } from './context'
+import { NotificationType, setCliContext } from './context'
 import { configureLogger } from '@marinade.finance/cli-common'
 
 const logger = configureLogger()
@@ -32,14 +32,15 @@ program
     'Additional webhook configurations.' +
       'Every "notification-type" has got different variadic arguments to pass in.\n' +
       'webhook expects url [<url>], i.e., --notification-type webhook -c http://some/url\n' +
-      "telegram expects token [<token> <chatId>], i.e., --notification-type telegram -c 'abcdef:123' '-123456789'"
+      "telegram expects token [<token> <chatId>], i.e., --notification-type telegram -c 'abcdef:123' '-123456789'\n" +
+      "discord expects webhook url [<webhookUrl>], i.e., --notification-type discord -c 'https://discord.com/api/webhooks/123-channel-id/bot-idFsOSHkGHVM'"
   )
   .addOption(
     new Option(
       '-n, --notification-type <notification-type>',
       'Notification type'
     )
-      .choices(['webhook', 'telegram', 'none'])
+      .choices(Object.keys(NotificationType).map(k => k.toLowerCase()))
       .default('none')
   )
   .option(
