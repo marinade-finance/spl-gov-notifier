@@ -32,9 +32,7 @@ export async function notify(
         chat_id: notification.chatId,
         text:
           message +
-          `\n<a href="${proposalUrl}">Proposal: ${proposalUrl
-            .split('/')
-            .at(-1)}</a>` +
+          `\n<a href="${proposalUrl}">Proposal: ${proposalId}</a>` +
           footer,
         disable_notification: true,
         parse_mode: 'HTML',
