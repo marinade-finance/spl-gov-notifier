@@ -131,6 +131,7 @@ export async function checkProposals({
       // proposal is cancelled
       proposal.account.state === ProposalState.Cancelled
     ) {
+      await notify('TEST', proposalUrl, proposalVotingAt)
       countCancelled++
       continue
     }
