@@ -93,12 +93,4 @@ export async function notify(
     default:
       return
   }
-  if (axiosResponse.status !== 200) {
-    logger.error(
-      'failed to send notification %s; axios status: %s, data: %s',
-      notification,
-      axiosResponse.status,
-      JSON.stringify(axiosResponse.data)
-    )
-  }
 }
