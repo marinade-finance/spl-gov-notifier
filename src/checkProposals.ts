@@ -64,7 +64,7 @@ export async function checkProposals({
   timeToCheck: number
 }): Promise<void> {
   const { connection, logger, redisClient } = useContext()
-  logger.info(`getting all governance accounts for ${realm.toBase58()}`)
+  logger.info(`getting all governance accounts for '${realm.toBase58()}'`)
 
   const realmAccount = await connection.getAccountInfo(realm)
   if (realmAccount === null) {
@@ -122,16 +122,19 @@ export async function checkProposals({
   let countCancelled = 0
   for (const proposal of proposals) {
     debugProposal(logger, proposal)
+    const proposalUrl = `https://realms.today/dao/${realmUriComponent}/proposal/${proposal.pubkey.toBase58()}`
+    // timestamp of the proposal is in seconds, typescript works with milliseconds
+    const proposalVotingAt = proposal.account.votingAt
+      ? new Date(proposal.account.votingAt.toNumber() * 1000)
+      : undefined
     if (
       // proposal is cancelled
       proposal.account.state === ProposalState.Cancelled
     ) {
-      const msg = `TEST: SPL Governance proposal ${
-        proposal.account.name
-      } was cancelled: https://realms.today/dao/${realmUriComponent}/proposal/${proposal.pubkey.toBase58()}`
-      await notify(msg, proposal)
+      const msg = `TEST: SPL Governance proposal '${proposal.account.name}' was cancelled`
+      await notify(msg, proposalUrl, proposalVotingAt)
       countCancelled++
-      break // TODO change for continue
+      continue
     }
 
     if (
@@ -157,11 +160,8 @@ export async function checkProposals({
     ) {
       countJustOpenedForVoting++
 
-      const msg = `SPL Governance proposal ${
-        proposal.account.name
-      } just opened for voting: https://realms.today/dao/${realmUriComponent}/proposal/${proposal.pubkey.toBase58()}`
-
-      await notify(msg, proposal)
+      const msg = `SPL Governance proposal '${proposal.account.name}' just opened for voting`
+      await notify(msg, proposalUrl, proposalVotingAt)
     }
     // note that these could also include those in finalizing state, but this is just for logging
     else if (proposal.account.state === ProposalState.Voting) {
@@ -177,11 +177,8 @@ export async function checkProposals({
       remainingInSeconds > 86400 &&
       remainingInSeconds < 86400 + timeToCheck + toleranceInSeconds
     ) {
-      const msg = `SPL Governance proposal ${
-        proposal.account.name
-      } will close for voting: https://realms.today/dao/${realmUriComponent}/proposal/${proposal.pubkey.toBase58()} in 24 hrs`
-
-      await notify(msg, proposal)
+      const msg = `SPL Governance proposal '${proposal.account.name}' will close for voting in 24 hrs`
+      await notify(msg, proposalUrl, proposalVotingAt)
     }
   }
 
