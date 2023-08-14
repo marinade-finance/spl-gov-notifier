@@ -43,13 +43,6 @@ export async function notify(message: string, proposal: ProgramAccount<Proposal>
           {
             title: `TEST: SPL Governance Notifier`,
             color: '3093151', // blue
-            footer,
-            fields: [
-              {
-                name: "URL",
-                value: `https://realms.today/dao/ID/proposal/${proposal.pubkey.toBase58()}`
-              },
-            ],
           },
       }
       logger.debug(
