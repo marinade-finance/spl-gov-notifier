@@ -13,7 +13,8 @@ export async function notify(
   proposalVotingAt: Date | undefined
 ) {
   const { notification, logger, commandName } = useContext()
-  const proposalId = proposalUrl.split('/').at(-1)
+  const proposalUrlSplit = proposalUrl.split('/')
+  const proposalId = proposalUrlSplit[proposalUrlSplit.length - 1]
   logger.info(
     'notify proposal: %s, message: %s, url: %s, voting at: %s',
     proposalId,
