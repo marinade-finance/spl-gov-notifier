@@ -57,7 +57,7 @@ export async function notify(
       const payload = {
         username: 'SPL Governance Notifier : ' + commandName,
         avatar_url:
-          'https://raw.githubusercontent.com/marinade-finance/spl-gov-notifier/62770e10c5310ec3fce2c4c8e134680edcdaf14d/img/bot.jpg',
+          'https://raw.githubusercontent.com/marinade-finance/spl-gov-notifier/0ff4af8db726fd42de014b314c05a5abad152fd7/img/bot.jpg',
         embeds: [
           {
             title: `Proposal: ${proposalId}`,
