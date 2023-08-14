@@ -131,8 +131,6 @@ export async function checkProposals({
       // proposal is cancelled
       proposal.account.state === ProposalState.Cancelled
     ) {
-      const msg = `TEST: SPL Governance proposal '${proposal.account.name}' was cancelled`
-      await notify(msg, proposalUrl, proposalVotingAt)
       countCancelled++
       continue
     }
