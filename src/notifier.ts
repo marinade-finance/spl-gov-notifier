@@ -1,3 +1,4 @@
+import { ProgramAccount, Proposal } from '@solana/spl-governance'
 import { NotificationType, useContext } from './context'
 import axios from 'axios'
 
@@ -7,7 +8,7 @@ const headers = {
   'Content-Type': 'application/json',
 }
 
-export async function notify(message: string) {
+export async function notify(message: string, proposal: ProgramAccount<Proposal>) {
   const { notification, logger, commandName } = useContext()
   logger.info('notify: %s', message)
 
@@ -29,21 +30,33 @@ export async function notify(message: string) {
       break
     }
     case NotificationType.DISCORD: {
+      console.log(proposal.account.votingAt)
+      const footer = proposal.account.votingAt ?
+      {
+        text: `📅 ${new Date(proposal.account.votingAt.toNumber() * 1000).toISOString()}`,
+      } : undefined
       const payload = {
         username: 'SPL Governance Notifier : ' + commandName,
         avatar_url:
           'https://raw.githubusercontent.com/marinade-finance/spl-gov-notifier/62770e10c5310ec3fce2c4c8e134680edcdaf14d/img/bot.jpg',
-        embeds: [
+        embed:
           {
-            title: `${message}`,
+            title: `TEST: SPL Governance Notifier`,
             color: '3093151', // blue
+            footer,
+            fields: [
+              {
+                name: "URL",
+                value: `https://realms.today/dao/ID/proposal/${proposal.pubkey.toBase58()}`
+              },
+            ],
           },
-        ],
       }
       logger.debug(
-        'sending discord notification to "%s" with payload "%s"',
-        notification.url,
-        JSON.stringify(payload)
+        'sending discord notification to "%s/<secret>" with payload "%s, headers: %s"',
+        new URL(notification.url).origin,
+        JSON.stringify(payload),
+        JSON.stringify(headers)
       )
       axiosResponse = await axios.post(notification.url, payload, { headers })
       break

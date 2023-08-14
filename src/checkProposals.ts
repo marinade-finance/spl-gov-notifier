@@ -69,7 +69,7 @@ export async function checkProposals({
   const realmAccount = await connection.getAccountInfo(realm)
   if (realmAccount === null) {
     throw new Error(
-      `Realm ${realm.toBase58()} not found via RPC '${connection.rpcEndpoint}'`
+      `Realm ${realm.toBase58()} not found via RPC ${connection.rpcEndpoint}`
     )
   }
   const governances = await getGovernanceAccounts(
@@ -126,8 +126,12 @@ export async function checkProposals({
       // proposal is cancelled
       proposal.account.state === ProposalState.Cancelled
     ) {
+      const msg = `TEST: SPL Governance proposal ${
+        proposal.account.name
+      } was cancelled: https://realms.today/dao/${realmUriComponent}/proposal/${proposal.pubkey.toBase58()}`
+      await notify(msg, proposal)
       countCancelled++
-      continue
+      break // TODO change for continue
     }
 
     if (
@@ -153,11 +157,11 @@ export async function checkProposals({
     ) {
       countJustOpenedForVoting++
 
-      const msg = `SPL Governance proposal '${
+      const msg = `SPL Governance proposal ${
         proposal.account.name
-      }' just opened for voting: https://realms.today/dao/${realmUriComponent}/proposal/${proposal.pubkey.toBase58()}`
+      } just opened for voting: https://realms.today/dao/${realmUriComponent}/proposal/${proposal.pubkey.toBase58()}`
 
-      await notify(msg)
+      await notify(msg, proposal)
     }
     // note that these could also include those in finalizing state, but this is just for logging
     else if (proposal.account.state === ProposalState.Voting) {
@@ -173,11 +177,11 @@ export async function checkProposals({
       remainingInSeconds > 86400 &&
       remainingInSeconds < 86400 + timeToCheck + toleranceInSeconds
     ) {
-      const msg = `SPL Governance proposal '${
+      const msg = `SPL Governance proposal ${
         proposal.account.name
-      }' will close for voting: https://realms.today/dao/${realmUriComponent}/proposal/${proposal.pubkey.toBase58()} in 24 hrs`
+      } will close for voting: https://realms.today/dao/${realmUriComponent}/proposal/${proposal.pubkey.toBase58()} in 24 hrs`
 
-      await notify(msg)
+      await notify(msg, proposal)
     }
   }
 
