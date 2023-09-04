@@ -166,16 +166,25 @@ export async function checkProposals({
       countOpenForVotingSinceSomeTime++
     }
 
-    const remainingInSeconds =
+    const baseVotingTime =
       governancesMap[proposal.account.governance.toBase58()].account.config
-        .baseVotingTime +
-      proposal.account.votingAt.toNumber() -
-      nowInSeconds
+        .baseVotingTime
+    const remainingVotingBaseTimeInSeconds =
+      baseVotingTime + proposal.account.votingAt.toNumber() - nowInSeconds
     if (
-      remainingInSeconds > 86400 &&
-      remainingInSeconds < 86400 + timeToCheck + toleranceInSeconds
+      remainingVotingBaseTimeInSeconds > 86400 &&
+      remainingVotingBaseTimeInSeconds <
+        86400 + timeToCheck + toleranceInSeconds
     ) {
-      const msg = `SPL Governance proposal '${proposal.account.name}' will close for voting in 24 hrs`
+      let msg = `SPL Governance proposal '${proposal.account.name}' will close for voting in 24 hrs`
+      const votingCoolOffTime =
+        governancesMap[proposal.account.governance.toBase58()].account.config
+          .votingCoolOffTime
+      if (votingCoolOffTime > 0) {
+        msg += ` (plus Proposal Cool-off Time ${
+          votingCoolOffTime / 3600
+        } hours that permits to withdraw votes)`
+      }
       await notify(msg, proposalUrl, proposalVotingAt)
     }
   }
