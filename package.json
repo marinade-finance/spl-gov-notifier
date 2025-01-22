@@ -24,22 +24,29 @@
   "license": "ISC",
   "dependencies": {
     "@coral-xyz/anchor": "0.28",
-    "@marinade.finance/cli-common": "^1.0.3",
-    "@marinade.finance/spl-gov-utils": "^1.0.0",
+    "@marinade.finance/cli-common": "^2.4.9",
+    "@marinade.finance/spl-gov-utils": "^2.4.9",
     "@solana/spl-governance": "^0.3.28",
-    "@solana/web3.js": "^1.78.8",
+    "@solana/web3.js": "^1.98.0",
     "axios": "^1.7.4",
     "bn.js": "^5.2.0",
-    "commander": "^11.0.0",
-    "pino": "^8.15.0",
-    "pino-pretty": "^10.2.0",
+    "commander": "^13.1.0",
+    "pino": "^9.6.0",
+    "pino-pretty": "^13.0.0",
     "redis": "^4.6.7"
   },
   "devDependencies": {
-    "@types/node": "^20.4.5",
-    "gts": "^5.0.0",
+    "@types/node": "^22.10.7",
+    "gts": "^6.0.2",
     "ts-node": "^10.9.1",
-    "typescript": "~5.1.6"
+    "typescript": "~5.7.3"
+  },
+  "pnpm": {
+    "overrides": {
+      "braces@<3.0.3": "3.0.3",
+      "cross-spawn@<7.0.5": "7.0.5",
+      "micromatch@<4.0.8": "4.0.8"
+    }
   },
   "engines": {
     "node": ">=16.0.0"

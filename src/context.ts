@@ -1,7 +1,7 @@
 import { Connection } from '@solana/web3.js'
 import {
   Context,
-  getClusterUrl,
+  parseClusterUrl,
   parseCommitment,
   setContext,
   getContext,
@@ -152,7 +152,7 @@ export async function setCliContext({
   redisUrl: string | undefined
 }) {
   const connection = new Connection(
-    getClusterUrl(url),
+    parseClusterUrl(url),
     parseCommitment(commitment)
   )
   const parsedType = parseNotificationType(notificationType)
