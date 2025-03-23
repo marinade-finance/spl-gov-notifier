@@ -1,4 +1,4 @@
-import { ProgramAccount } from '@solana/spl-governance'
+import { ProgramAccount } from '@realms-today/spl-governance'
 
 // adapted from https://github.com/solana-labs/governance-ui
 
@@ -18,7 +18,7 @@ export function arrayToMap<T, K>(source: readonly T[], getKey: (item: T) => K) {
 
 export function arrayToRecord<T>(
   source: readonly T[],
-  getKey: (item: T) => string
+  getKey: (item: T) => string,
 ) {
   return source.reduce((all, a) => ({ ...all, [getKey(a)]: a }), {}) as Record<
     string,

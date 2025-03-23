@@ -8,14 +8,14 @@ import {
   ProposalState,
   pubkeyFilter,
   Realm,
-} from '@solana/spl-governance'
+} from '@realms-today/spl-governance'
 import { Command } from 'commander'
 import { parsePubkey } from '@marinade.finance/cli-common'
 import { MNDE_REALM_ADDRESS } from '@marinade.finance/spl-gov-utils'
-import { useContext } from './context'
-import { accountsToPubkeyMap } from './utils'
-import { notify } from './notifier'
+import { useContext } from '../context'
+import { accountsToPubkeyMap } from '../utils'
 import { Logger } from 'pino'
+import { sendNotifications } from '../notifier'
 
 // advanced from https://github.com/solana-labs/governance-ui
 //  - expecting to be run every X mins via a cronjob
@@ -24,46 +24,72 @@ import { Logger } from 'pino'
 
 const REDIS_KEY = 'spl-gov-notifier:proposals_timestamp'
 const fiveMinutesInSeconds = 5 * 60
-const toleranceInSeconds = 30
+const oneDayInSeconds = 24 * 60 * 60 // 86400 seconds
+const toleranceInSecondsDefault = 10
 
 export function installCheckProposals(program: Command) {
   program
     .command('proposals')
-    .description('Verify existence of governance proposals in last time period')
+    .description(
+      'Verify existence of newly created governance proposals in last time period',
+    )
     .option(
       '-r, --realm <realm>',
-      'Realm to check proposals for',
+      `Realm to check proposals for (default: Marinade Finance ${MNDE_REALM_ADDRESS.toBase58()})`,
       parsePubkey,
-      Promise.resolve(MNDE_REALM_ADDRESS)
     )
     .option(
       '-t, --time-to-check <seconds>',
-      'How many seconds in past should be checked for new proposals in the realm; default 5 minutes',
-      parseFloat,
-      fiveMinutesInSeconds
+      'Time window (in seconds) to look back for new proposals in the realm (default: 300s / 5 minutes)',
+      v => parseInt(v, 10),
+      fiveMinutesInSeconds,
+    )
+    .option(
+      '--time-to-check-tolerance <seconds>',
+      'Amount of time (in seconds) that is used as buffer for looking back to past as an addition to `--time-to-check` to not skip any notification ' +
+        'when `--time-to-check` is defined for example for 5 minutes and cron job time goes every 5 minutes. ' +
+        'When redis is defined then this value should be close to 0 to not double emit notifications.',
+      v => parseInt(v, 60),
+      toleranceInSecondsDefault,
+    )
+    .option(
+      '--report-closed',
+      'Report closed proposals. Normally, the notifier reports proposals opened in the last period (see --time-to-check). ' +
+        'This option is useful for testing, allowing notifications for already closed proposals to verify if notifications work correctly.',
+      false,
     )
     .action(
       async ({
         realm,
         timeToCheck,
+        timeToCheckTolerance,
+        reportClosed,
       }: {
-        realm: Promise<PublicKey>
+        realm?: Promise<PublicKey>
         timeToCheck: number
+        timeToCheckTolerance: number
+        reportClosed: boolean
       }) => {
         await checkProposals({
           realm: await realm,
-          timeToCheck,
+          lookBackPeriod: timeToCheck,
+          toleranceInSeconds: timeToCheckTolerance,
+          reportClosed,
         })
-      }
+      },
     )
 }
 
 export async function checkProposals({
-  realm,
-  timeToCheck,
+  realm = MNDE_REALM_ADDRESS,
+  lookBackPeriod,
+  toleranceInSeconds,
+  reportClosed,
 }: {
-  realm: PublicKey
-  timeToCheck: number
+  realm?: PublicKey
+  lookBackPeriod: number
+  toleranceInSeconds: number
+  reportClosed: boolean
 }): Promise<void> {
   const { connection, logger, redisClient } = useContext()
   logger.info(`getting all governance accounts for '${realm.toBase58()}'`)
@@ -71,54 +97,56 @@ export async function checkProposals({
   const realmAccount = await connection.getAccountInfo(realm)
   if (realmAccount === null) {
     throw new Error(
-      `Realm ${realm.toBase58()} not found via RPC ${connection.rpcEndpoint}`
+      `Realm ${realm.toBase58()} not found via RPC ${connection.rpcEndpoint}`,
     )
   }
   const realmData: ProgramAccount<Realm> = GovernanceAccountParser(Realm)(
     realm,
-    realmAccount
+    realmAccount,
   )
 
   const governances = await getGovernanceAccounts(
     connection,
     realmAccount.owner,
     Governance,
-    [pubkeyFilter(1, realm)!]
+    [pubkeyFilter(1, realm)!],
   )
 
   const governancesMap = accountsToPubkeyMap(governances)
 
   logger.info(
-    `getting all proposals for all #${governances.length} governances`
+    `getting all proposals for all #${governances.length} governances`,
   )
   const proposalsByGovernance = await Promise.all(
     Object.keys(governancesMap).map(governancePk => {
       return getGovernanceAccounts(connection, realmAccount.owner, Proposal, [
         pubkeyFilter(1, new PublicKey(governancePk))!,
       ])
-    })
+    }),
   )
   const proposals = proposalsByGovernance.flat()
 
   const realmUriComponent = encodeURIComponent(realm.toBase58())
   logger.info(
-    `scanning all proposals from realm ${realm.toBase58()} #` + proposals.length
+    `scanning all proposals from realm ${realm.toBase58()} #` +
+      proposals.length,
   )
 
-  const nowInSeconds = new Date().getTime() / 1000
+  // cli timestamp works in seconds, typescript works with milliseconds
+  const currentTimestamp = Math.floor(new Date().getTime() / 1000)
 
   // when redis url is available then timePeriod is adjusted
   // to verify if we have not missed any proposals
   if (redisClient) {
-    const redisTimestamp = await redisClient.get(REDIS_KEY)
-    const redisTimestampAsNumber = redisTimestamp
-      ? parseInt(redisTimestamp)
+    const redisTimestampData = await redisClient.get(REDIS_KEY)
+    const redisTimestamp = redisTimestampData
+      ? parseInt(redisTimestampData)
       : null
     if (
-      redisTimestampAsNumber !== null &&
-      redisTimestampAsNumber < nowInSeconds - timeToCheck
+      redisTimestamp !== null &&
+      redisTimestamp < currentTimestamp - lookBackPeriod
     ) {
-      timeToCheck = nowInSeconds - redisTimestampAsNumber
+      lookBackPeriod = currentTimestamp - redisTimestamp
     }
   }
 
@@ -147,30 +175,39 @@ export async function checkProposals({
       proposal.account.votingCompletedAt
     ) {
       countClosed++
-      continue
+      if (!reportClosed) {
+        continue
+      }
     }
 
     if (
       // voting has not started yet
       !proposal.account.votingAt
     ) {
+      logger.debug(
+        `Proposal '${proposal.account.name}' (${proposal.pubkey.toBase58()}) has not started yet`,
+      )
       countVotingNotStartedYet++
       continue
     }
 
     if (
-      // proposal opened in last X mins
-      nowInSeconds - proposal.account.votingAt.toNumber() <=
-      timeToCheck + toleranceInSeconds
+      // proposal opened in last X seconds
+      currentTimestamp - proposal.account.votingAt.toNumber() <=
+      lookBackPeriod + toleranceInSeconds
     ) {
-      countJustOpenedForVoting++
+      if (!proposal.account.votingCompletedAt) {
+        countJustOpenedForVoting++
+      }
 
-      const votingSide = getVotingSide(realmData, proposal)
-      const msg = `SPL Governance proposal '${proposal.account.name}' just opened for ${votingSide} voting`
-      await notify(msg, proposalUrl, proposalVotingAt)
+      const votingSide = getVotingSide(realmData, proposal) // community or council
+      const message = `SPL Governance proposal '${proposal.account.name}' opened for ${votingSide} voting`
+      await sendNotifications({ message, proposalUrl, proposalVotingAt })
+      continue
     }
+
     // note that these could also include those in finalizing state, but this is just for logging
-    else if (proposal.account.state === ProposalState.Voting) {
+    if (proposal.account.state === ProposalState.Voting) {
       countOpenForVotingSinceSomeTime++
     }
 
@@ -178,37 +215,37 @@ export async function checkProposals({
       governancesMap[proposal.account.governance.toBase58()].account.config
         .baseVotingTime
     const remainingVotingBaseTimeInSeconds =
-      baseVotingTime + proposal.account.votingAt.toNumber() - nowInSeconds
+      baseVotingTime + proposal.account.votingAt.toNumber() - currentTimestamp
     if (
-      remainingVotingBaseTimeInSeconds > 86400 &&
+      remainingVotingBaseTimeInSeconds > oneDayInSeconds &&
       remainingVotingBaseTimeInSeconds <
-        86400 + timeToCheck + toleranceInSeconds
+        oneDayInSeconds + lookBackPeriod + toleranceInSeconds
     ) {
       const votingSide = getVotingSide(realmData, proposal)
-      let msg = `SPL Governance proposal '${proposal.account.name}' will close for ${votingSide} voting in 24 hrs`
+      let message = `SPL Governance proposal '${proposal.account.name}' will close for ${votingSide} voting in 24 hrs`
       const votingCoolOffTime =
         governancesMap[proposal.account.governance.toBase58()].account.config
           .votingCoolOffTime
       if (votingCoolOffTime > 0) {
-        msg += ` (plus Proposal Cool-off Time ${
+        message += ` (plus Proposal Cool-off Time ${
           votingCoolOffTime / 3600
         } hours that permits to withdraw votes)`
       }
-      await notify(msg, proposalUrl, proposalVotingAt)
+      await sendNotifications({ message, proposalUrl, proposalVotingAt })
     }
   }
 
   if (redisClient) {
     await redisClient.set(
       REDIS_KEY,
-      (nowInSeconds + toleranceInSeconds).toString()
+      (currentTimestamp + toleranceInSeconds).toString(),
     )
   }
 
   logger.info(
     `countOpenForVotingSinceSomeTime: ${countOpenForVotingSinceSomeTime}, ` +
       `countJustOpenedForVoting: ${countJustOpenedForVoting}, countVotingNotStartedYet: ${countVotingNotStartedYet}, ` +
-      `countClosed: ${countClosed}, countCancelled: ${countCancelled}`
+      `countClosed: ${countClosed}, countCancelled: ${countCancelled}`,
   )
 }
 
@@ -218,7 +255,7 @@ function getStateKey(value: number): string | undefined {
 
 function getVotingSide(
   realm: ProgramAccount<Realm>,
-  proposal: ProgramAccount<Proposal>
+  proposal: ProgramAccount<Proposal>,
 ): string {
   return proposal.account.governingTokenMint.equals(realm.account.communityMint)
     ? 'community'
@@ -236,6 +273,6 @@ function debugProposal(logger: Logger, proposal: ProgramAccount<Proposal>) {
       : null,
     proposal.account.votingAt
       ? new Date(proposal.account.votingAt.toNumber() * 1000)
-      : null
+      : null,
   )
 }
