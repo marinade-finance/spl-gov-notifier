@@ -195,16 +195,20 @@ async function sendSlackNotification(
     notifications: { botName },
     commandName,
   } = useContext()
+  let footer = `<${proposalUrl}|Check at Realms DAO page`
+  footer += proposalVotingAtText ? ` : ${proposalVotingAtText}>` : '>'
   const payload = {
     channel: notification.feed,
     attachments: [
       {
+        author_name: botName,
+        author_link: proposalUrl,
+        author_icon: BOT_IMAGE_URL,
         title: `${botName} ${commandName} : ${proposalId}`,
         color: notification.notificationColor,
         title_link: proposalUrl,
         text: `${message}\nproposal: ${proposalId}`,
-        text_link: proposalUrl,
-        footer: proposalVotingAtText ?? '',
+        footer,
       },
     ],
   }

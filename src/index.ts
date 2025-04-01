@@ -19,6 +19,7 @@ program
     'Notify about Solana SPL Governance newly created proposals via webhook calls',
   )
   .allowExcessArguments(false)
+  .configureHelp({ showGlobalOptions: true })
   .option(
     '-u, --url <url-or-moniker>',
     'URL of Solana cluster or moniker ' +
