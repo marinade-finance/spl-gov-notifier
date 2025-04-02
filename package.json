@@ -1,6 +1,6 @@
 {
   "name": "spl-gov-proposal-notification",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "",
   "main": "index.js",
   "bin": {
@@ -23,23 +23,26 @@
   "author": "Marinade.Finance",
   "license": "ISC",
   "dependencies": {
-    "@coral-xyz/anchor": "0.28",
-    "@marinade.finance/cli-common": "^2.4.9",
-    "@marinade.finance/spl-gov-utils": "^2.4.9",
-    "@solana/spl-governance": "^0.3.28",
-    "@solana/web3.js": "^1.98.0",
-    "axios": "^1.7.4",
-    "bn.js": "^5.2.0",
+    "axios": "^1.8.4",
+    "bs58": "6.0.0",
+    "bn.js": "^5.2.1",
     "commander": "^13.1.0",
+    "dotenv": "16.4.7",
+    "@marinade.finance/cli-common": "2.4.13",
+    "@marinade.finance/web3js-common": "2.4.13",
+    "@marinade.finance/ts-common": "2.4.13",
+    "@marinade.finance/spl-gov-utils": "2.4.13",
     "pino": "^9.6.0",
     "pino-pretty": "^13.0.0",
-    "redis": "^4.6.7"
+    "@realms-today/spl-governance": "^0.3.32",
+    "redis": "^4.7.0",
+    "@solana/web3.js": "^1.98.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.7",
     "gts": "^6.0.2",
-    "ts-node": "^10.9.1",
-    "typescript": "~5.7.3"
+    "ts-node": "^10.9.2",
+    "typescript": "5.8.2"
   },
   "pnpm": {
     "overrides": {
