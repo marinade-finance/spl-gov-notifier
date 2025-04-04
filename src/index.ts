@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 
+/* eslint-disable no-process-exit */
+/* eslint-disable n/no-process-exit */
+
 import { Command } from 'commander'
 import { setCliContext } from './context'
 import { configureLogger } from '@marinade.finance/cli-common'
@@ -62,6 +65,7 @@ installCommands(program)
 program.parseAsync(process.argv).then(
   () => {
     logger.debug({ resolution: 'Success', args: process.argv })
+    process.exit(0)
   },
   (err: Error) => {
     logger.error(
@@ -70,7 +74,6 @@ program.parseAsync(process.argv).then(
         : err.message,
     )
     logger.debug({ resolution: 'Failure', err, args: process.argv })
-
-    process.exitCode = 1
+    process.exit(1)
   },
 )

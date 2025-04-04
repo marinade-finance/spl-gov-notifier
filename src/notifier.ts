@@ -57,8 +57,9 @@ export async function sendNotifications(
   }
 
   const results = await Promise.allSettled(
-    notifications.map(notification =>
-      sendNotification(notification, messageWithProposalId),
+    notifications.map(
+      async notification =>
+        await sendNotification(notification, messageWithProposalId),
     ),
   )
 
@@ -81,16 +82,16 @@ async function sendNotification(
 ): Promise<void> {
   switch (notification.type) {
     case NotificationType.WEBHOOK:
-      return sendWebhookNotification(notification, message)
+      return await sendWebhookNotification(notification, message)
 
     case NotificationType.TELEGRAM:
-      return sendTelegramNotification(notification, message)
+      return await sendTelegramNotification(notification, message)
 
     case NotificationType.DISCORD:
-      return sendDiscordNotification(notification, message)
+      return await sendDiscordNotification(notification, message)
 
     case NotificationType.SLACK:
-      return sendSlackNotification(notification, message)
+      return await sendSlackNotification(notification, message)
 
     default:
       getContext().logger.warn('No notifications type configured for sending')
