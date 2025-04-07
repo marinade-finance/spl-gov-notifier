@@ -49,7 +49,7 @@ export function installCheckProposals(program: Command) {
       'Amount of time (in seconds) that is used as buffer for looking back to past as an addition to `--time-to-check` to not skip any notification ' +
         'when `--time-to-check` is defined for example for 5 minutes and cron job time goes every 5 minutes. ' +
         'When redis is defined then this value should be close to 0 to not double emit notifications.',
-      v => parseInt(v, 60),
+      v => parseInt(v, 10),
       toleranceInSecondsDefault,
     )
     .option(
