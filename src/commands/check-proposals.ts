@@ -217,7 +217,8 @@ export async function checkProposals({
     const remainingVotingBaseTimeInSeconds =
       baseVotingTime + proposal.account.votingAt.toNumber() - currentTimestamp
     if (
-      remainingVotingBaseTimeInSeconds >= oneDayInSeconds - lookBackPeriod &&
+      remainingVotingBaseTimeInSeconds >=
+        oneDayInSeconds - toleranceInSeconds &&
       remainingVotingBaseTimeInSeconds <
         oneDayInSeconds + lookBackPeriod + toleranceInSeconds
     ) {
