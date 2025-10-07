@@ -1,20 +1,22 @@
 #!/usr/bin/env node
 
-/* eslint-disable no-process-exit */
-/* eslint-disable n/no-process-exit */
+/* eslint-disable n/no-process-exit, @typescript-eslint/no-unsafe-assignment */
 
+import { pinoConfiguration } from '@marinade.finance/ts-common'
+import { ExecutionError } from '@marinade.finance/web3js-1x'
 import { Command } from 'commander'
-import { setCliContext } from './context'
-import { configureLogger } from '@marinade.finance/cli-common'
-import { ExecutionError } from '@marinade.finance/web3js-common'
+import pino from 'pino'
+
+import { installCommands } from './commands'
+import { setSplGovCliContext } from './context'
 import {
   addNotificationProgramOptions,
   parseNotificationOpts,
 } from './notification-parser'
-import { installCommands } from './commands'
 
-const logger = configureLogger()
-const program = new Command('')
+const logger = pino(pinoConfiguration('info'), pino.destination())
+logger.level = 'debug'
+const program = new Command()
 
 program
   .version('2.0.0')
@@ -50,7 +52,7 @@ program.hook('preAction', async (command: Command, action: Command) => {
     logger.level = 'info'
   }
 
-  await setCliContext({
+  await setSplGovCliContext({
     url: command.opts().url as string,
     commitment: command.opts().commitment,
     logger,

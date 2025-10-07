@@ -1,6 +1,10 @@
-import { Command, Option, OptionValues } from 'commander'
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+
+import { Option } from 'commander'
 import * as dotenv from 'dotenv'
-import { Logger } from 'pino'
+
+import type { Command, OptionValues } from 'commander'
+import type { Logger } from 'pino'
 
 dotenv.config()
 
@@ -189,7 +193,13 @@ export function parseNotificationOpts<T extends OptionValues>(
     notifications.push({ type: NotificationType.NONE })
   }
 
-  logger.debug('Configured notifications: ' + notifications.map(n => n.type))
+  logger.debug(
+    'Configured notifications: ' +
+      notifications
+        .map(n => n.type)
+        .map(n => `\n- ${n}`)
+        .join(''),
+  )
   const botName = options.botName || DEFAULT_BOT_NAME
   return { botName, notifications }
 }

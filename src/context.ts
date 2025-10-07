@@ -1,44 +1,33 @@
+import { CLIContext, CliCommandError } from '@marinade.finance/cli-common'
+import { getContext, setContext } from '@marinade.finance/ts-common'
+import { parseClusterUrl, parseCommitment } from '@marinade.finance/web3js-1x'
 import { Connection } from '@solana/web3.js'
-import {
-  Context,
-  parseClusterUrl,
-  parseCommitment,
-  setContext,
-  getContext,
-  CliCommandError,
-} from '@marinade.finance/cli-common'
-import { Logger } from 'pino'
-import { createClient, RedisClientType } from 'redis'
-import { Notifications } from './notification-parser'
+import { createClient } from 'redis'
 
-export class CliContext extends Context {
+import type { Notifications } from './notification-parser'
+import type { LoggerPlaceholder } from '@marinade.finance/ts-common'
+import type { RedisClientType } from 'redis'
+
+export class SplGovCliContext extends CLIContext {
   readonly connection: Connection
   readonly notifications: Notifications
   readonly redisClient: RedisClientType | undefined
+
   constructor({
     connection,
     logger,
-    skipPreflight,
-    simulate,
-    printOnly,
     commandName,
     notifications,
     redisClient,
   }: {
     connection: Connection
-    logger: Logger
-    skipPreflight: boolean
-    simulate: boolean
-    printOnly: boolean
+    logger: LoggerPlaceholder
     commandName: string
     notifications: Notifications
     redisClient: RedisClientType | undefined
   }) {
     super({
       logger,
-      skipPreflight,
-      simulate,
-      printOnly,
       commandName,
     })
     this.connection = connection
@@ -47,7 +36,7 @@ export class CliContext extends Context {
   }
 }
 
-export async function setCliContext({
+export async function setSplGovCliContext({
   url,
   logger,
   commitment,
@@ -56,7 +45,7 @@ export async function setCliContext({
   redisUrl,
 }: {
   url: string
-  logger: Logger
+  logger: LoggerPlaceholder
   commitment: string
   command: string
   notifications: Notifications
@@ -84,12 +73,9 @@ export async function setCliContext({
   }
 
   setContext(
-    new CliContext({
+    new SplGovCliContext({
       connection,
       logger,
-      skipPreflight: false,
-      simulate: false,
-      printOnly: false,
       commandName: command,
       notifications,
       redisClient,
@@ -97,6 +83,6 @@ export async function setCliContext({
   )
 }
 
-export function useContext(): CliContext {
-  return getContext() as CliContext
+export function useContext(): SplGovCliContext {
+  return getContext<SplGovCliContext>()
 }

@@ -1,4 +1,4 @@
-import { ProgramAccount } from '@realms-today/spl-governance'
+import type { ProgramAccount } from '@realms-today/spl-governance'
 
 // adapted from https://github.com/solana-labs/governance-ui
 

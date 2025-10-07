@@ -1,14 +1,28 @@
 {
-  "extends": "./node_modules/gts/tsconfig-google.json",
   "compilerOptions": {
-    "rootDir": ".",
-    "outDir": "build",
-    "esModuleInterop": true,
-    "resolveJsonModule": true,
+    "target": "ES2022",
+    "module": "CommonJS",
+    "incremental": true,
     "skipLibCheck": true,
-    "sourceMap": true
-  },
-  "include": [
-    "src/**/*.ts",
-  ]
+    "esModuleInterop": true,
+    "moduleResolution": "node",
+    "removeComments": true,
+    "resolveJsonModule": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+
+    /* Strictness */
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "forceConsistentCasingInFileNames": true,
+
+    /* Transpiling with TypeScript: */
+    "outDir": "dist",
+    "baseUrl": "./src",
+    "declaration": true,
+    "composite": true,
+    "sourceMap": true,
+    "declarationMap": true
+  }
 }

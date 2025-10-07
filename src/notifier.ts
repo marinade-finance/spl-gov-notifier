@@ -1,15 +1,17 @@
-import { useContext } from './context'
+import { getContext } from '@marinade.finance/ts-common'
+import { ExecutionError } from '@marinade.finance/web3js-1x'
 import axios from 'axios'
-import {
+
+import { useContext } from './context'
+import { NotificationType } from './notification-parser'
+
+import type {
   DiscordNotification,
   Notification,
-  NotificationType,
   SlackNotification,
   TelegramNotification,
   WebhookNotification,
 } from './notification-parser'
-import { ExecutionError } from '@marinade.finance/web3js-common'
-import { getContext } from '@marinade.finance/cli-common'
 
 const TELEGRAM_BOT_URL = 'https://api.telegram.org/bot'
 const SLACK_URL = 'https://slack.com/api/chat.postMessage'
@@ -39,7 +41,8 @@ export async function sendNotifications(
   } = useContext()
 
   const proposalUrlSplit = message.proposalUrl.split('/')
-  const proposalId = proposalUrlSplit[proposalUrlSplit.length - 1]
+  const proposalId =
+    proposalUrlSplit[proposalUrlSplit.length - 1] ?? '<<UNKNOWN>>'
   const proposalVotingAtText = message.proposalVotingAt
     ? `📅 ${message.proposalVotingAt.toISOString()}`
     : undefined
@@ -104,12 +107,12 @@ async function sendWebhookNotification(
   { proposalVotingAtText, message, proposalUrl }: NotificationMessageEnhanced,
 ): Promise<void> {
   const footer = proposalVotingAtText ? ` : ${proposalVotingAtText}` : ''
-  message = message + ' : ' + proposalUrl + footer
+  const composedMessage = message + ' : ' + proposalUrl + footer
 
   await doAxiosPost({
     type: notification.type,
     url: notification.url,
-    payload: { message },
+    payload: { message: composedMessage },
     headers,
   })
 }
@@ -256,7 +259,7 @@ async function doAxiosPost({
     }
   } catch (error) {
     throw new ExecutionError({
-      msg: `${type} notification error: ${error}`,
+      msg: `${String(type)} notification error: ${String(error)}`,
       cause: error as Error,
     })
   }

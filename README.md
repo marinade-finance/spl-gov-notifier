@@ -67,9 +67,10 @@ socat -v TCP-LISTEN:8000,crlf,reuseaddr,fork SYSTEM:"echo HTTP/1.0 200; echo Con
 
 ### 2. Notify on closed proposals
 
-* Run the notify pointing to the locally started mocked HTTP replier
-* Use option `--report-closed` to notify about closed proposals (by default only opened are reported)
-* Prolong the `--time-to-check` for example for 3 months to list all opened+closed proposals during that time.
+- Run the notify pointing to the locally started mocked HTTP replier
+- Use option `--report-closed` to notify about closed proposals (by default only opened are reported)
+- Prolong the `--time-to-check <seconds>` for example for 3 months (7889231 seconds)
+  to list all opened+closed proposals during that time.
 
 ```sh
 pnpm cli proposals -u $RPC_URL --report-closed --time-to-check 7889231 \
