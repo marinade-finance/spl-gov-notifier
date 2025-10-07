@@ -1,21 +1,24 @@
-import { PublicKey } from '@solana/web3.js'
+import { CliCommandError } from '@marinade.finance/cli-common'
+import { MNDE_REALM_ADDRESS } from '@marinade.finance/spl-gov-utils'
+import { parsePubkey } from '@marinade.finance/web3js-1x'
 import {
   getGovernanceAccounts,
   Governance,
   GovernanceAccountParser,
-  ProgramAccount,
   Proposal,
   ProposalState,
   pubkeyFilter,
   Realm,
 } from '@realms-today/spl-governance'
-import { Command } from 'commander'
-import { parsePubkey } from '@marinade.finance/cli-common'
-import { MNDE_REALM_ADDRESS } from '@marinade.finance/spl-gov-utils'
+import { PublicKey } from '@solana/web3.js'
+
 import { useContext } from '../context'
-import { accountsToPubkeyMap } from '../utils'
-import { Logger } from 'pino'
 import { sendNotifications } from '../notifier'
+import { accountsToPubkeyMap } from '../utils'
+
+import type { LoggerPlaceholder } from '@marinade.finance/ts-common'
+import type { ProgramAccount } from '@realms-today/spl-governance'
+import type { Command } from 'commander'
 
 // advanced from https://github.com/solana-labs/governance-ui
 //  - expecting to be run every X mins via a cronjob
@@ -35,7 +38,7 @@ export function installCheckProposals(program: Command) {
     )
     .option(
       '-r, --realm <realm>',
-      `Realm to check proposals for (default: Marinade Finance ${MNDE_REALM_ADDRESS.toBase58()})`,
+      `Realm to check proposals for (default: Marinade Finance ${MNDE_REALM_ADDRESS})`,
       parsePubkey,
     )
     .option(
@@ -81,7 +84,7 @@ export function installCheckProposals(program: Command) {
 }
 
 export async function checkProposals({
-  realm = MNDE_REALM_ADDRESS,
+  realm = new PublicKey(MNDE_REALM_ADDRESS),
   lookBackPeriod,
   toleranceInSeconds,
   reportClosed,
@@ -105,11 +108,17 @@ export async function checkProposals({
     realmAccount,
   )
 
+  const realmFilter = pubkeyFilter(1, realm)
+  if (!realmFilter) {
+    throw CliCommandError.instance(
+      `Cannot find realmFilter for realm pubkey '${realm.toBase58()}'`,
+    )
+  }
   const governances = await getGovernanceAccounts(
     connection,
     realmAccount.owner,
     Governance,
-    [pubkeyFilter(1, realm)!],
+    [realmFilter],
   )
 
   const governancesMap = accountsToPubkeyMap(governances)
@@ -118,11 +127,14 @@ export async function checkProposals({
     `getting all proposals for all #${governances.length} governances`,
   )
   const proposalsByGovernance = await Promise.all(
-    Object.keys(governancesMap).map(governancePk => {
-      return getGovernanceAccounts(connection, realmAccount.owner, Proposal, [
-        pubkeyFilter(1, new PublicKey(governancePk))!,
-      ])
-    }),
+    Object.keys(governancesMap)
+      .map(governancePk => pubkeyFilter(1, new PublicKey(governancePk)))
+      .filter(governanceFilter => governanceFilter !== undefined)
+      .map(governanceFilter => {
+        return getGovernanceAccounts(connection, realmAccount.owner, Proposal, [
+          governanceFilter,
+        ])
+      }),
   )
   const proposals = proposalsByGovernance.flat()
 
@@ -137,6 +149,7 @@ export async function checkProposals({
 
   // when redis url is available then timePeriod is adjusted
   // to verify if we have not missed any proposals
+  let lookBackPeriodDefined = lookBackPeriod
   if (redisClient) {
     const redisTimestampData = await redisClient.get(REDIS_KEY)
     const redisTimestamp = redisTimestampData
@@ -144,9 +157,9 @@ export async function checkProposals({
       : null
     if (
       redisTimestamp !== null &&
-      redisTimestamp < currentTimestamp - lookBackPeriod
+      redisTimestamp < currentTimestamp - lookBackPeriodDefined
     ) {
-      lookBackPeriod = currentTimestamp - redisTimestamp
+      lookBackPeriodDefined = currentTimestamp - redisTimestamp
     }
   }
 
@@ -194,7 +207,7 @@ export async function checkProposals({
     if (
       // proposal opened in last X seconds
       currentTimestamp - proposal.account.votingAt.toNumber() <=
-      lookBackPeriod + toleranceInSeconds
+      lookBackPeriodDefined + toleranceInSeconds
     ) {
       if (!proposal.account.votingCompletedAt) {
         countJustOpenedForVoting++
@@ -212,21 +225,21 @@ export async function checkProposals({
     }
 
     const baseVotingTime =
-      governancesMap[proposal.account.governance.toBase58()].account.config
-        .baseVotingTime
+      governancesMap[proposal.account.governance.toBase58()]?.account.config
+        .baseVotingTime ?? 0
     const remainingVotingBaseTimeInSeconds =
       baseVotingTime + proposal.account.votingAt.toNumber() - currentTimestamp
     if (
       remainingVotingBaseTimeInSeconds >=
         oneDayInSeconds - toleranceInSeconds &&
       remainingVotingBaseTimeInSeconds <
-        oneDayInSeconds + lookBackPeriod + toleranceInSeconds
+        oneDayInSeconds + lookBackPeriodDefined + toleranceInSeconds
     ) {
       const votingSide = getVotingSide(realmData, proposal)
       let message = `SPL Governance proposal '${proposal.account.name}' will close for ${votingSide} voting in 24 hrs`
       const votingCoolOffTime =
-        governancesMap[proposal.account.governance.toBase58()].account.config
-          .votingCoolOffTime
+        governancesMap[proposal.account.governance.toBase58()]?.account.config
+          .votingCoolOffTime ?? 0
       if (votingCoolOffTime > 0) {
         message += ` (plus Proposal Cool-off Time ${
           votingCoolOffTime / 3600
@@ -263,7 +276,10 @@ function getVotingSide(
     : 'council'
 }
 
-function debugProposal(logger: Logger, proposal: ProgramAccount<Proposal>) {
+function debugProposal(
+  logger: LoggerPlaceholder,
+  proposal: ProgramAccount<Proposal>,
+) {
   logger.debug(
     'proposal: %s, name: %s, state: %s, completedAt: %s, votingAt: %s',
     proposal.pubkey.toBase58(),
