@@ -195,10 +195,7 @@ export function parseNotificationOpts<T extends OptionValues>(
 
   logger.debug(
     'Configured notifications: ' +
-      notifications
-        .map(n => n.type)
-        .map(n => `\n- ${n}`)
-        .join(''),
+      notifications.map(n => `\n- ${n.type}`).join(''),
   )
   const botName = options.botName || DEFAULT_BOT_NAME
   return { botName, notifications }
