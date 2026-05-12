@@ -58,15 +58,10 @@
       "braces@<3.0.3": "3.0.3",
       "cross-spawn@<7.0.5": "7.0.5",
       "micromatch@<4.0.8": "4.0.8"
-    },
-    "onlyBuiltDependencies": [
-      "bufferutil",
-      "node-hid",
-      "unrs-resolver",
-      "utf-8-validate"
-    ]
+    }
   },
   "engines": {
     "node": ">=20.0.0"
-  }
+  },
+  "packageManager": "pnpm@11.0.9"
 }
