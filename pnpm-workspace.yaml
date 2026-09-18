@@ -6,3 +6,11 @@ allowBuilds:
   node-hid: true
   unrs-resolver: true
   utf-8-validate: true
+
+overrides:
+  'braces@<3.0.3': 3.0.3
+  'cross-spawn@<7.0.5': 7.0.5
+  'micromatch@<4.0.8': 4.0.8
+  'ws@7': ^7.5.13
+  'ws@8': ^8.21.3
+  uuid: ^11.1.1
